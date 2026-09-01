@@ -39,13 +39,15 @@ python3 scripts/smoke.py
 
 ## Deployment
 
-Static build di-serve oleh Caddy dalam container:
+Copy `docker-compose.prod.yml` ke server, lalu:
 
 ```bash
-docker compose up -d
+mkdir -p ~/apps/glm-proxy-dashboard && cd ~/apps/glm-proxy-dashboard
+curl -O https://raw.githubusercontent.com/ajianaz/glm-proxy-dashboard/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-Label Traefik contoh ada di `docker-compose.yml` (domain `glm-dash.ajianaz.dev`). Endpoint API bisa dioverride via `VITE_API_BASE` saat build (default `https://glm.ajianaz.dev`).
+Domain default `gdash.ajianaz.dev` (override via `.env`: `DOMAIN=...`). Tidak ada build, tidak ada env yang wajib — image di-pull dari GHCR (`ghcr.io/ajianaz/glm-proxy-dashboard:main`). Update: `docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d`.
 
 ## Terkait
 

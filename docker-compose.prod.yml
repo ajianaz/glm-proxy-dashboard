@@ -1,0 +1,32 @@
+# docker-compose.prod.yml - untuk deploy di server
+# JANGAN edit file ini. Domain bisa dioverride via .env (DOMAIN=...).
+#
+# Usage:
+#   mkdir glm-proxy-dashboard && cd glm-proxy-dashboard
+#   # simpan file ini + .env (opsional) di folder itu
+#   docker compose -f docker-compose.prod.yml up -d
+
+services:
+  glm-dash:
+    image: ghcr.io/ajianaz/glm-proxy-dashboard:main
+    container_name: glm-dash
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gdash.rule=Host(`${DOMAIN:-gdash.ajianaz.dev}`)"
+      - "traefik.http.routers.gdash.entrypoints=websecure"
+      - "traefik.http.routers.gdash.tls=true"
+      - "traefik.http.routers.gdash.tls.certresolver=myresolver"
+      - "traefik.http.services.gdash.loadbalancer.server.port=80"
+    networks:
+      - public-net
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 16M
+
+networks:
+  public-net:
+    external: true
