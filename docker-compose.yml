@@ -1,0 +1,17 @@
+services:
+  glm-dash:
+    build: .
+    # image: ${DOCKER_BASEURL}/${DOCKER_USERNAME}/glm-dash:latest
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.glm-dash.rule=Host(`glm-dash.ajianaz.dev`)
+      - traefik.http.routers.glm-dash.entrypoints=websecure
+      - traefik.http.routers.glm-dash.tls.certresolver=le
+      - traefik.http.services.glm-dash.loadbalancer.server.port=80
+
+networks:
+  proxy:
+    external: true
