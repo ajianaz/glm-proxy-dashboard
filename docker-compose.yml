@@ -1,7 +1,7 @@
 services:
   glm-dash:
     build: .
-    # image: ${DOCKER_BASEURL}/${DOCKER_USERNAME}/glm-dash:latest
+    image: ghcr.io/ajianaz/glm-proxy-dashboard:latest
     restart: unless-stopped
     networks:
       - proxy
