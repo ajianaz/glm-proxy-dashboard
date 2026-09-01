@@ -26,3 +26,6 @@ npm-debug.log*
 .idea
 .vscode
 .DS_Store
+
+# cora review artifacts
+.cora/
