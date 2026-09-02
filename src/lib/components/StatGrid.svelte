@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { StatsResponse } from "../types";
-  import { formatNumber, timeAgo } from "../format";
+  import { formatNumber, timeAgo, formatDate } from "../format";
 
   let { stats }: { stats: StatsResponse } = $props();
 </script>
@@ -21,6 +21,10 @@
   <div class="stat">
     <div class="label">Terakhir dipakai</div>
     <div class="value value-sm">{timeAgo(stats.last_used)}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Berlaku sampai</div>
+    <div class="value value-sm">{formatDate(stats.expiry_date)}</div>
   </div>
 </div>
 

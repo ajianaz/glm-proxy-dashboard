@@ -11,7 +11,9 @@
 
   let { apikey, ondisconnect }: { apikey: string; ondisconnect: () => void } = $props();
 
-  const POLL_MS = 60_000;
+  const POLL_OPTIONS = [1, 5, 15, 30, 60]; // minutes
+  const DEFAULT_POLL_MIN = 5;
+  const POLL_MIN_KEY = "glm-dash.pollmin";
 
   let stats = $state<StatsResponse | null>(null);
   let windows = $state<HistoryPoint[]>([]);
@@ -23,12 +25,47 @@
   let timer: ReturnType<typeof setInterval> | undefined;
   let seq = 0;
 
+  // 429 = key valid, 5h window quota exhausted. Keep showing the last good
+  // snapshot plus the quota card with reset time; polling continues so the
+  // dashboard recovers automatically once the window rolls.
+  let rateLimited = $state<{ tokensUsed: number; tokensLimit: number; windowEndsAt: string } | null>(
+    null,
+  );
+
+  const rlBody = $derived.by(() => {
+    if (!rateLimited) return "";
+    const used = rateLimited.tokensUsed.toLocaleString("id-ID");
+    const limit = rateLimited.tokensLimit.toLocaleString("id-ID");
+    const resetAt = rateLimited.windowEndsAt
+      ? new Date(rateLimited.windowEndsAt).toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "setelah window bergeser";
+    return `Key masih aktif. Jatah terpakai ${used} dari ${limit} token. Kuota kembali pada ${resetAt} — pantauan lanjut otomatis.`;
+  });
+
+  function loadPollMin(): number {
+    const v = Number.parseInt(localStorage.getItem(POLL_MIN_KEY) ?? "", 10);
+    return POLL_OPTIONS.includes(v) ? v : DEFAULT_POLL_MIN;
+  }
+  let pollMin = $state(loadPollMin());
+
+  function setPollMin(e: Event) {
+    const v = Number.parseInt((e.currentTarget as HTMLSelectElement).value, 10);
+    if (!POLL_OPTIONS.includes(v)) return;
+    pollMin = v;
+    localStorage.setItem(POLL_MIN_KEY, String(v));
+    startPolling(); // apply immediately
+  }
+
   async function poll() {
     const reqId = ++seq;
     const res = await fetchStats(apikey);
     if (reqId !== seq) return; // stale response guard
     if (res.ok) {
       stats = res.data;
+      rateLimited = null;
       offline = false;
       failStreak = 0;
       lastSync = new Date();
@@ -43,12 +80,22 @@
       samples = await getSamples(res.data.current_usage.window_started_at);
     } else {
       failStreak += 1;
+      // A non-429 failure invalidates the quota state: a 401/403 after a 429
+      // must show the auth failure, not a stale "key masih aktif" banner.
+      if (res.error.kind !== "rate_limited") rateLimited = null;
       // Network errors (kind === "network") flip the offline indicator;
-      // auth errors surface via the banner below.
+      // auth errors surface via the banner below. 429 is not an error state:
+      // the quota card keeps rendering with the server-provided reset time.
       offline = res.error.kind === "network";
       if (res.error.kind === "forbidden") {
         // expired: stop polling, keep snapshot
         stopPolling();
+      } else if (res.error.kind === "rate_limited") {
+        rateLimited = {
+          tokensUsed: res.error.rateLimit.tokens_used,
+          tokensLimit: res.error.rateLimit.tokens_limit,
+          windowEndsAt: res.error.rateLimit.window_ends_at,
+        };
       }
     }
   }
@@ -56,6 +103,15 @@
   function stopPolling() {
     if (timer) clearInterval(timer);
     timer = undefined;
+    // Invalidate any in-flight poll: without this, a request already running
+    // at logout/unmount passes the stale guard and writes the old key's data
+    // into IndexedDB after clearAll().
+    seq += 1;
+  }
+
+  function startPolling() {
+    stopPolling();
+    timer = setInterval(poll, pollMin * 60_000);
   }
 
   async function changeKey() {
@@ -67,7 +123,7 @@
       await prune();
       await poll();
       loaded = true;
-      timer = setInterval(poll, POLL_MS);
+      startPolling();
     })();
     return () => stopPolling();
   });
@@ -87,9 +143,15 @@
           {stats.name || "api key"}
         </span>
       {/if}
-      {#if lastSync}
-        <span class="sync">Tersinkron {lastSync.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</span>
-      {/if}
+      <label class="poll">
+        Tiap
+        <select class="pollselect" value={pollMin} onchange={setPollMin} aria-label="Interval pembaruan">
+          {#each POLL_OPTIONS as m (m)}
+            <option value={m}>{m} mnt</option>
+          {/each}
+        </select>
+      </label>
+      <button class="logout" onclick={changeKey}>Keluar</button>
     </div>
   </header>
 
@@ -112,11 +174,25 @@
         onaction={changeKey}
       />
     {/if}
-    <WindowCard {stats} />
+    {#if rateLimited}
+      <Banner variant="warn" title="Kuota window 5 jam sudah habis" body={rlBody} />
+    {/if}
+    <WindowCard
+      used={rateLimited ? rateLimited.tokensUsed : stats.current_usage.tokens_used_in_current_window}
+      limit={rateLimited ? rateLimited.tokensLimit || stats.token_limit_per_5h : stats.token_limit_per_5h}
+      windowEnd={rateLimited?.windowEndsAt || stats.current_usage.window_ends_at}
+    />
     <StatGrid {stats} />
     <AccumulationChart {samples} limit={stats.token_limit_per_5h} windowStart={stats.current_usage.window_started_at} windowEnd={stats.current_usage.window_ends_at} />
     <HistoryTable {windows} />
     <footer class="foot">glm-dash v{__APP_VERSION__} · Data historis tersimpan lokal di perangkat</footer>
+  {:else if rateLimited}
+    <Banner variant="warn" title="Kuota window 5 jam sudah habis" body={rlBody} />
+    <WindowCard
+      used={rateLimited.tokensUsed}
+      limit={rateLimited.tokensLimit || 1}
+      windowEnd={rateLimited.windowEndsAt}
+    />
   {:else if failStreak > 0}
     <Banner
       variant="danger"
@@ -188,10 +264,38 @@
     background: var(--color-danger);
     box-shadow: 0 0 0 3px var(--color-dot-bad-ring);
   }
-  .sync {
+  .poll {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
     font-size: var(--text-xs);
     color: var(--color-ink-3);
     white-space: nowrap;
+  }
+  .pollselect {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-ink);
+    background: var(--color-paper-2);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: var(--space-1) var(--space-2);
+  }
+  .logout {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--color-ink-2);
+    background: transparent;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    min-height: 30px;
+    padding: 0 var(--space-3);
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out);
+    white-space: nowrap;
+  }
+  .logout:hover {
+    background: var(--color-paper-3);
   }
   .skeleton {
     height: 140px;
@@ -203,7 +307,7 @@
     padding-top: var(--space-5);
   }
   @media (max-width: 420px) {
-    .sync {
+    .keychip {
       display: none;
     }
     .topbar {
