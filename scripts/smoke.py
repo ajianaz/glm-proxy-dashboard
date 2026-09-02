@@ -189,7 +189,8 @@ async def main():
             await page.screenshot(path=str(ROOT / "qa-debug-desktop.png"))
             raise
         hero = await page.inner_text(".card .num")
-        expected = f"{4_000_000 + POLL_COUNT['n'] * 50_000:,}".replace(",", ".")
+        used = 4_000_000 + POLL_COUNT["n"] * 50_000
+        expected = f"{used / 1_000_000:.1f}".replace(".", ",") + " jt"
         assert hero == expected, f"hero number wrong: got {hero}, expected {expected}"
         print(f"dashboard rendered, hero={hero}")
 
@@ -261,6 +262,9 @@ async def main():
         await page3.wait_for_selector(".banner", timeout=75_000)
         banner_txt = await page3.inner_text(".banner")
         assert "Kuota window 5 jam" in banner_txt, f"429 banner wrong: {banner_txt}"
+        assert "16,4 jt" in banner_txt and "15 jt" in banner_txt, (
+            f"429 banner numbers not compact: {banner_txt}"
+        )
         # snapshot must still be rendered (calm mode, not an error wipe)
         num = await page3.inner_text(".card .num")
         assert num.strip(), "window card vanished during 429"

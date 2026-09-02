@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { HistoryPoint } from "../types";
-  import { formatNumber } from "../format";
+  import { formatNumber, formatCompact } from "../format";
 
   let { windows }: { windows: HistoryPoint[] } = $props();
 
@@ -12,10 +12,7 @@
 </script>
 
 <div class="card">
-  <p class="label">
-    Riwayat window
-    <span class="soft">(tersimpan lokal, IndexedDB)</span>
-  </p>
+  <p class="label">Riwayat window</p>
   {#if windows.length === 0}
     <p class="empty">Belum ada riwayat. Data terkumpul saat aplikasi terbuka.</p>
   {:else}
@@ -27,7 +24,7 @@
         {#each windows as w (w.key)}
           <tr>
             <td class="mono">{range(w)}</td>
-            <td class="num">{formatNumber(w.tokens_used)}</td>
+            <td class="num" title={formatNumber(w.tokens_used)}>{formatCompact(w.tokens_used)}</td>
             <td class="num">{formatNumber(w.requests)}</td>
           </tr>
         {/each}
@@ -51,11 +48,6 @@
     text-transform: uppercase;
     color: var(--color-ink-3);
     margin: 0 0 var(--space-3);
-  }
-  .soft {
-    text-transform: none;
-    letter-spacing: 0;
-    font-weight: 400;
   }
   .empty {
     color: var(--color-ink-3);
