@@ -11,7 +11,7 @@
 
   const W = 660;
   const H = 240;
-  const PAD_L = 50;
+  const PAD_L = 62;
   const PAD_R = 20;
   const PAD_T = 20;
   const PAD_B = 40;
@@ -85,9 +85,7 @@
 <div class="card">
   <p class="label">Akumulasi token (window berjalan)</p>
   {#if points.length < 2}
-    <p class="empty">
-      Mengumpulkan data… grafik terisi otomatis saat aplikasi terbuka dan memantau.
-    </p>
+    <p class="empty">Mengumpulkan data. Grafik terisi otomatis selama aplikasi terbuka.</p>
   {:else}
     <svg class="chart" viewBox="0 0 {W} {H}" role="img" aria-label="Grafik akumulasi token dalam window berjalan">
       {#each yTicks as t (t.y)}
@@ -100,7 +98,8 @@
       {#if limitY !== null}
         <line class="limit-line" x1={PAD_L} y1={limitY} x2={W - PAD_R} y2={limitY} />
         <text class="limit-text" x={W - PAD_R - 4} y={limitY + 14} text-anchor="end">
-          limit {formatNumber(limit)}
+          <title>{formatNumber(limit)} token</title>
+          limit {formatCompact(limit)}
         </text>
       {/if}
       <path class="area" d={areaPath} />

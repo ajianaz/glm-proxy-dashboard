@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatNumber, formatPercent, formatTime, countdown } from "../format";
+  import { formatNumber, formatCompact, formatPercent, formatTime, countdown } from "../format";
 
   let { used, limit, windowEnd }: { used: number; limit: number; windowEnd: string } = $props();
 
@@ -13,8 +13,8 @@
 <div class="card">
   <p class="label">Kuota window 5 jam</p>
   <div>
-    <span class="num">{formatNumber(used)}</span>
-    <span class="denom"> / {formatNumber(limit)} token</span>
+    <span class="num" title={formatNumber(used)}>{formatCompact(used)}</span>
+    <span class="denom" title={formatNumber(limit)}> / {formatCompact(limit)} token</span>
   </div>
   <div
     class="bar"

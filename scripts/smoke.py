@@ -10,6 +10,7 @@ Run: python3 scripts/smoke.py   (requires `bun run preview` on :4173)
 import asyncio
 import glob
 import json
+import math
 import pathlib
 from datetime import datetime, timedelta, timezone
 
@@ -189,7 +190,11 @@ async def main():
             await page.screenshot(path=str(ROOT / "qa-debug-desktop.png"))
             raise
         hero = await page.inner_text(".card .num")
-        expected = f"{4_000_000 + POLL_COUNT['n'] * 50_000:,}".replace(",", ".")
+        used = 4_000_000 + POLL_COUNT["n"] * 50_000
+        # Mirror JS formatCompact rounding: Math.round(v * 10) / 10 (half-up).
+        # Python's :.1f is round-half-even and diverges at e.g. 4_050_000.
+        compact = math.floor(used / 100_000 + 0.5) / 10
+        expected = f"{compact:.1f}".replace(".", ",") + " jt"
         assert hero == expected, f"hero number wrong: got {hero}, expected {expected}"
         print(f"dashboard rendered, hero={hero}")
 
@@ -261,6 +266,9 @@ async def main():
         await page3.wait_for_selector(".banner", timeout=75_000)
         banner_txt = await page3.inner_text(".banner")
         assert "Kuota window 5 jam" in banner_txt, f"429 banner wrong: {banner_txt}"
+        assert "16,4 jt" in banner_txt and "15 jt" in banner_txt, (
+            f"429 banner numbers not compact: {banner_txt}"
+        )
         # snapshot must still be rendered (calm mode, not an error wipe)
         num = await page3.inner_text(".card .num")
         assert num.strip(), "window card vanished during 429"

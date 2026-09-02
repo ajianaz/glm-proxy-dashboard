@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { StatsResponse } from "../types";
-  import { formatNumber, timeAgo, formatDate } from "../format";
+  import { formatNumber, formatCompact, timeAgo, formatDate } from "../format";
 
   let { stats }: { stats: StatsResponse } = $props();
 </script>
@@ -8,15 +8,11 @@
 <div class="grid">
   <div class="stat">
     <div class="label">Permintaan total</div>
-    <div class="value">{formatNumber(stats.total_requests)}</div>
+    <div class="value" title={formatNumber(stats.total_requests)}>{formatCompact(stats.total_requests)}</div>
   </div>
   <div class="stat">
     <div class="label">Token seumur hidup</div>
-    <div class="value">{formatNumber(stats.total_lifetime_tokens)}</div>
-  </div>
-  <div class="stat">
-    <div class="label">Model</div>
-    <div><span class="chip">{stats.model}</span></div>
+    <div class="value" title={formatNumber(stats.total_lifetime_tokens)}>{formatCompact(stats.total_lifetime_tokens)}</div>
   </div>
   <div class="stat">
     <div class="label">Terakhir dipakai</div>
@@ -55,15 +51,5 @@
   .value-sm {
     font-size: var(--text-base);
     padding-top: 2px;
-  }
-  .chip {
-    display: inline-block;
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    background: var(--color-accent-soft);
-    color: var(--color-accent);
-    border-radius: var(--radius-full);
-    padding: 0.1rem var(--space-3);
   }
 </style>

@@ -3,6 +3,7 @@
   import { fetchStats } from "../api";
   import { recordPoll, getWindows, getSamples, prune, clearAll } from "../db";
   import type { HistoryPoint, SamplePoint, StatsResponse } from "../types";
+  import { formatCompact } from "../format";
   import WindowCard from "./WindowCard.svelte";
   import StatGrid from "./StatGrid.svelte";
   import AccumulationChart from "./AccumulationChart.svelte";
@@ -11,7 +12,13 @@
 
   let { apikey, ondisconnect }: { apikey: string; ondisconnect: () => void } = $props();
 
-  const POLL_OPTIONS = [1, 5, 15, 30, 60]; // minutes
+  const POLL_OPTIONS = [
+    { value: 1, label: "Tiap 1 mnt" },
+    { value: 5, label: "Tiap 5 mnt" },
+    { value: 15, label: "Tiap 15 mnt" },
+    { value: 30, label: "Tiap 30 mnt" },
+    { value: 60, label: "Tiap 1 jam" },
+  ]; // minutes
   const DEFAULT_POLL_MIN = 5;
   const POLL_MIN_KEY = "glm-dash.pollmin";
 
@@ -34,26 +41,26 @@
 
   const rlBody = $derived.by(() => {
     if (!rateLimited) return "";
-    const used = rateLimited.tokensUsed.toLocaleString("id-ID");
-    const limit = rateLimited.tokensLimit.toLocaleString("id-ID");
+    const used = formatCompact(rateLimited.tokensUsed);
+    const limit = formatCompact(rateLimited.tokensLimit);
     const resetAt = rateLimited.windowEndsAt
       ? new Date(rateLimited.windowEndsAt).toLocaleTimeString("id-ID", {
           hour: "2-digit",
           minute: "2-digit",
         })
       : "setelah window bergeser";
-    return `Key masih aktif. Jatah terpakai ${used} dari ${limit} token. Kuota kembali pada ${resetAt} — pantauan lanjut otomatis.`;
+    return `Key masih aktif, jatah terpakai ${used} dari ${limit} token (${rateLimited.tokensUsed.toLocaleString("id-ID")} / ${rateLimited.tokensLimit.toLocaleString("id-ID")}). Kuota kembali pada ${resetAt}, pantauan lanjut otomatis.`;
   });
 
   function loadPollMin(): number {
     const v = Number.parseInt(localStorage.getItem(POLL_MIN_KEY) ?? "", 10);
-    return POLL_OPTIONS.includes(v) ? v : DEFAULT_POLL_MIN;
+    return POLL_OPTIONS.some((o) => o.value === v) ? v : DEFAULT_POLL_MIN;
   }
   let pollMin = $state(loadPollMin());
 
   function setPollMin(e: Event) {
     const v = Number.parseInt((e.currentTarget as HTMLSelectElement).value, 10);
-    if (!POLL_OPTIONS.includes(v)) return;
+    if (!POLL_OPTIONS.some((o) => o.value === v)) return;
     pollMin = v;
     localStorage.setItem(POLL_MIN_KEY, String(v));
     startPolling(); // apply immediately
@@ -144,10 +151,14 @@
         </span>
       {/if}
       <label class="poll">
-        Tiap
-        <select class="pollselect" value={pollMin} onchange={setPollMin} aria-label="Interval pembaruan">
-          {#each POLL_OPTIONS as m (m)}
-            <option value={m}>{m} mnt</option>
+        <select
+          class="pollselect"
+          value={pollMin}
+          onchange={setPollMin}
+          aria-label="Interval pembaruan data"
+        >
+          {#each POLL_OPTIONS as o (o.value)}
+            <option value={o.value}>{o.label}</option>
           {/each}
         </select>
       </label>
