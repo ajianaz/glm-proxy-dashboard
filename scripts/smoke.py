@@ -28,6 +28,7 @@ WINDOW_END = (_NOW + timedelta(hours=3)).isoformat().replace("+00:00", "Z")
 
 
 def mock_stats():
+    """Build one mocked /stats 200 body; usage grows with each poll."""
     POLL_COUNT["n"] += 1
     n = POLL_COUNT["n"]
     used = 4_000_000 + n * 50_000
@@ -52,6 +53,7 @@ def mock_stats():
 
 
 def mock_429_body():
+    """Build the proxy's real 429 error shape for the rate-limited flows."""
     return {
         "error": {
             "message": "Token limit exceeded for current 5-hour window",
@@ -102,6 +104,7 @@ async (args) => {
 
 
 async def main():
+    """Run the full smoke suite: happy path, 429 flows, logout, mobile QA."""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             executable_path=CHROMIUM,

@@ -80,6 +80,9 @@
       samples = await getSamples(res.data.current_usage.window_started_at);
     } else {
       failStreak += 1;
+      // A non-429 failure invalidates the quota state: a 401/403 after a 429
+      // must show the auth failure, not a stale "key masih aktif" banner.
+      if (res.error.kind !== "rate_limited") rateLimited = null;
       // Network errors (kind === "network") flip the offline indicator;
       // auth errors surface via the banner below. 429 is not an error state:
       // the quota card keeps rendering with the server-provided reset time.
@@ -100,6 +103,10 @@
   function stopPolling() {
     if (timer) clearInterval(timer);
     timer = undefined;
+    // Invalidate any in-flight poll: without this, a request already running
+    // at logout/unmount passes the stale guard and writes the old key's data
+    // into IndexedDB after clearAll().
+    seq += 1;
   }
 
   function startPolling() {

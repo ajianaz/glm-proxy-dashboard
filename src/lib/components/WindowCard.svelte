@@ -6,6 +6,10 @@
   const pct = $derived(limit > 0 ? (used / limit) * 100 : 0);
 </script>
 
+<!--
+  Quota card for the rolling 5h window. Props (not the full StatsResponse) so
+  it can render identically from a 200 snapshot or a 429 rate-limit body.
+-->
 <div class="card">
   <p class="label">Kuota window 5 jam</p>
   <div>
