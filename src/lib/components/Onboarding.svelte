@@ -28,6 +28,8 @@
         return "API key tidak dikenal. Periksa kembali key kamu.";
       case "forbidden":
         return "API key sudah kadaluarsa. Minta key baru ke admin.";
+      case "rate_limited":
+        return "Kuota window 5 jam key ini sudah habis, tapi key masih aktif. Coba lagi setelah kuota reset, atau cek lagi nanti.";
       case "network":
         return "Tidak bisa terhubung ke server. Periksa koneksi internet kamu.";
       default:

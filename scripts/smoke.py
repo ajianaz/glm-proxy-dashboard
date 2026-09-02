@@ -3,6 +3,8 @@
 - Blocks the PWA service worker (deterministic routing to page.route mocks).
 - Seeds IndexedDB with 12 realistic samples so the accumulation chart has data
   (in real use the 60s poll interval builds this over hours).
+- Covers 429 UX: mid-session quota banner (snapshot kept) and cold-429
+  onboarding message, plus logout returning to onboarding.
 Run: python3 scripts/smoke.py   (requires `bun run preview` on :4173)
 """
 import asyncio
@@ -46,6 +48,18 @@ def mock_stats():
         },
         "total_requests": 1240 + n,
         "total_lifetime_tokens": 18_392_104,
+    }
+
+
+def mock_429_body():
+    return {
+        "error": {
+            "message": "Token limit exceeded for current 5-hour window",
+            "type": "rate_limit_exceeded",
+            "tokens_used": 16_427_618,
+            "tokens_limit": 15_000_000,
+            "window_ends_at": WINDOW_END,
+        }
     }
 
 
@@ -95,14 +109,38 @@ async def main():
         )
         errors = []
 
-        def make_route():
-            async def handle_route(route):
+        # Single shared route: tests are sequential, so a module-level status
+        # flag keeps the mock deterministic (no unroute/route races).
+        stats_status = {"code": 200}
+
+        CORS_HEADERS = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Authorization, x-api-key, Content-Type",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+        }
+
+        async def handle_stats_route(route):
+            # The app's fetch sends Authorization/x-api-key -> non-simple request
+            # -> the browser sends an OPTIONS preflight that ALSO matches this
+            # route. Fulfill it with CORS headers or the real request never fires
+            # (fetch throws instantly, looks like a network error).
+            try:
+                if route.request.method == "OPTIONS":
+                    await route.fulfill(status=204, headers=CORS_HEADERS)
+                    return
+                body = mock_stats() if stats_status["code"] == 200 else mock_429_body()
                 await route.fulfill(
-                    status=200,
+                    status=stats_status["code"],
                     content_type="application/json",
-                    body=json.dumps(mock_stats()),
+                    headers=CORS_HEADERS,
+                    body=json.dumps(body),
                 )
-            return handle_route
+            except Exception as exc:  # surface handler bugs instead of silent aborts
+                print(f"ROUTE HANDLER ERROR: {exc!r}")
+                try:
+                    await route.abort()
+                except Exception:
+                    pass
 
         async def new_page(viewport):
             # service_workers="block": the PWA SW (clientsClaim) would otherwise
@@ -111,13 +149,18 @@ async def main():
             ctx = await browser.new_context(viewport=viewport, service_workers="block")
             page = await ctx.new_page()
             page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
-            page.on(
-                "console",
-                lambda m: errors.append(f"console.error: {m.text}")
-                if m.type == "error"
-                else None,
-            )
-            await page.route("**/stats", make_route())
+
+            def _on_console(m):
+                if m.type != "error":
+                    return
+                # Expected: the browser logs every non-2xx mock response as a
+                # resource error. Only 429 flows are mocked non-2xx in this test.
+                if "status of 429" in m.text:
+                    return
+                errors.append(f"console.error: {m.text}")
+
+            page.on("console", _on_console)
+            await page.route("**/stats", handle_stats_route)
             return ctx, page
 
         async def seed_history(page):
@@ -189,8 +232,63 @@ async def main():
         assert overflow == 0, "horizontal overflow on mobile"
         await page2.screenshot(path=str(ROOT / "qa-mobile.png"), full_page=True)
 
+        # --- mid-session 429: dashboard loaded, then window quota exhausts ---
+        # connect with 200, flip the route to 429, set poll to 1 minute and
+        # wait for the quota banner. Dashboard must stay calm: banner + last
+        # snapshot, no scary "key tidak dikenal" message.
+        ctx3, page3 = await new_page({"width": 1280, "height": 900})
+        await page3.goto(BASE, wait_until="networkidle")
+        await page3.wait_for_selector("#keyinput")
+        await page3.fill("#keyinput", "sk-tes...1234")
+        await page3.wait_for_function(
+            "() => { const b = document.querySelector('button[type=submit]'); return b && !b.disabled; }",
+            timeout=5000,
+        )
+        await page3.click("button[type=submit]")
+        try:
+            await page3.wait_for_selector(".card .num", timeout=8000)
+        except Exception:
+            body = await page3.inner_text("body")
+            print("CTX3 TIMEOUT BODY:", body[:600])
+            await page3.screenshot(path=str(ROOT / "qa-debug-ctx3.png"))
+            raise
+
+        stats_status["code"] = 429
+        await page3.select_option(".pollselect", "1")
+        await page3.wait_for_selector(".banner", timeout=75_000)
+        banner_txt = await page3.inner_text(".banner")
+        assert "Kuota window 5 jam" in banner_txt, f"429 banner wrong: {banner_txt}"
+        # snapshot must still be rendered (calm mode, not an error wipe)
+        num = await page3.inner_text(".card .num")
+        assert num.strip(), "window card vanished during 429"
+        print(f"mid-session 429: banner shown, snapshot kept (num={num})")
+        await page3.screenshot(path=str(ROOT / "qa-429-desktop.png"), full_page=True)
+
+        # --- logout from the same session ---
+        await page3.click("button.logout")
+        await page3.wait_for_selector("#keyinput", timeout=8000)
+        print("logout returns to onboarding")
+
+        # --- cold 429 on onboarding: quota message, not generic server error ---
+        ctx4, page4 = await new_page({"width": 375, "height": 812})
+        await page4.goto(BASE, wait_until="networkidle")
+        await page4.wait_for_selector("#keyinput")
+        await page4.fill("#keyinput", "sk-tes...1234")
+        await page4.wait_for_function(
+            "() => { const b = document.querySelector('button[type=submit]'); return b && !b.disabled; }",
+            timeout=5000,
+        )
+        await page4.click("button[type=submit]")
+        await page4.wait_for_selector(".error", timeout=8000)
+        err_txt = await page4.inner_text(".error")
+        assert "Kuota window 5 jam" in err_txt, f"onboarding 429 message wrong: {err_txt}"
+        print("onboarding 429 shows quota message")
+        await page4.screenshot(path=str(ROOT / "qa-429-mobile.png"), full_page=True)
+
         await ctx.close()
         await ctx2.close()
+        await ctx3.close()
+        await ctx4.close()
         await browser.close()
 
         if errors:

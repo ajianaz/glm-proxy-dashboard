@@ -7,6 +7,11 @@ const dayFmt = new Intl.DateTimeFormat("id-ID", {
   day: "numeric",
   month: "short",
 });
+const fullDayFmt = new Intl.DateTimeFormat("id-ID", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
 
 export function formatNumber(n: number): string {
   return idFmt.format(n);
@@ -26,6 +31,11 @@ export function formatTime(iso: string): string {
 
 export function formatDay(iso: string): string {
   return dayFmt.format(new Date(iso));
+}
+
+/** "31 Agu 2026" full date for expiry display. */
+export function formatDate(iso: string): string {
+  return fullDayFmt.format(new Date(iso));
 }
 
 /** "2 j 14 m lagi" style countdown until ISO timestamp. */

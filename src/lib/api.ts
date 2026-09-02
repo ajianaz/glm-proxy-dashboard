@@ -20,9 +20,16 @@ export function getBaseUrl(): string {
   return import.meta.env.VITE_API_BASE ?? DEFAULT_BASE;
 }
 
+export interface RateLimitInfo {
+  tokens_used: number;
+  tokens_limit: number;
+  window_ends_at: string;
+}
+
 export type StatsError =
   | { kind: "unauthorized" } // 401: key invalid
   | { kind: "forbidden"; expiryDate?: string } // 403: key expired
+  | { kind: "rate_limited"; rateLimit: RateLimitInfo } // 429: 5h window quota exhausted, resets at window_ends_at
   | { kind: "network" }
   | { kind: "unknown"; status: number };
 
@@ -43,6 +50,24 @@ export async function fetchStats(apiKey: string): Promise<
   }
 
   if (resp.status === 401) return { ok: false, error: { kind: "unauthorized" } };
+  if (resp.status === 429) {
+    // 429 = 5h window quota exhausted, key itself is still valid.
+    // Body carries tokens_used / tokens_limit / window_ends_at.
+    let rateLimit: RateLimitInfo | undefined;
+    try {
+      const body = (await resp.json()) as { error?: RateLimitInfo };
+      if (body.error && body.error.window_ends_at) rateLimit = body.error;
+    } catch {
+      // body not JSON; keep undefined
+    }
+    return {
+      ok: false,
+      error: {
+        kind: "rate_limited",
+        rateLimit: rateLimit ?? { tokens_used: 0, tokens_limit: 0, window_ends_at: "" },
+      },
+    };
+  }
   if (resp.status === 403) {
     // expired key returns { "error": "API key expired on <date>" }
     let expiryDate: string | undefined;

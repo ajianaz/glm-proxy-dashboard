@@ -1,21 +1,16 @@
 <script lang="ts">
-  import type { StatsResponse } from "../types";
   import { formatNumber, formatPercent, formatTime, countdown } from "../format";
 
-  let { stats }: { stats: StatsResponse } = $props();
+  let { used, limit, windowEnd }: { used: number; limit: number; windowEnd: string } = $props();
 
-  const pct = $derived(
-    stats.token_limit_per_5h > 0
-      ? (stats.current_usage.tokens_used_in_current_window / stats.token_limit_per_5h) * 100
-      : 0
-  );
+  const pct = $derived(limit > 0 ? (used / limit) * 100 : 0);
 </script>
 
 <div class="card">
-  <p class="label">Window 5 jam berjalan</p>
+  <p class="label">Kuota window 5 jam</p>
   <div>
-    <span class="num">{formatNumber(stats.current_usage.tokens_used_in_current_window)}</span>
-    <span class="denom"> / {formatNumber(stats.token_limit_per_5h)} token</span>
+    <span class="num">{formatNumber(used)}</span>
+    <span class="denom"> / {formatNumber(limit)} token</span>
   </div>
   <div
     class="bar"
@@ -28,9 +23,9 @@
     <div class="fill" style:width="{Math.min(100, pct)}%"></div>
   </div>
   <div class="meta">
-    <span>{formatPercent(stats.current_usage.tokens_used_in_current_window, stats.token_limit_per_5h)} terpakai</span>
+    <span>{formatPercent(used, limit)} terpakai</span>
     <span class="mono">
-      Reset {formatTime(stats.current_usage.window_ends_at)} ({countdown(stats.current_usage.window_ends_at)})
+      Reset {formatTime(windowEnd)} ({countdown(windowEnd)})
     </span>
   </div>
 </div>
