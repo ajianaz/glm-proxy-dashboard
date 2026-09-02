@@ -49,7 +49,7 @@
           minute: "2-digit",
         })
       : "setelah window bergeser";
-    return `Key masih aktif, jatah terpakai ${used} dari ${limit} token. Kuota kembali pada ${resetAt}, pantauan lanjut otomatis.`;
+    return `Key masih aktif, jatah terpakai ${used} dari ${limit} token (${rateLimited.tokensUsed.toLocaleString("id-ID")} / ${rateLimited.tokensLimit.toLocaleString("id-ID")}). Kuota kembali pada ${resetAt}, pantauan lanjut otomatis.`;
   });
 
   function loadPollMin(): number {

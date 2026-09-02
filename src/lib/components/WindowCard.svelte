@@ -14,7 +14,7 @@
   <p class="label">Kuota window 5 jam</p>
   <div>
     <span class="num" title={formatNumber(used)}>{formatCompact(used)}</span>
-    <span class="denom"> / {formatCompact(limit)} token</span>
+    <span class="denom" title={formatNumber(limit)}> / {formatCompact(limit)} token</span>
   </div>
   <div
     class="bar"

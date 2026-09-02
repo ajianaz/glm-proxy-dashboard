@@ -98,6 +98,7 @@
       {#if limitY !== null}
         <line class="limit-line" x1={PAD_L} y1={limitY} x2={W - PAD_R} y2={limitY} />
         <text class="limit-text" x={W - PAD_R - 4} y={limitY + 14} text-anchor="end">
+          <title>{formatNumber(limit)} token</title>
           limit {formatCompact(limit)}
         </text>
       {/if}
